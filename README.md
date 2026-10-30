@@ -61,7 +61,10 @@
 
 支持多个推送后端，可在 `Settings`→`Secrets and variables`→`Action` 中按需配置，**任一后端配置后即会推送，支持同时配置多个（都发）**：
 
-- **PushDeer**：添加 `repository secret` 命名为 `PUSHDEER_SENDKEY`，其值对应 PushDeer key（[获取地址](https://www.pushdeer.com/product.html)）。
+- **PushDeer**：配置以下两个 `repository secret`，服务地址和密钥均通过环境变量注入：
+  - `PUSHDEER_SERVER`：PushDeer 服务根地址，包含 `http://` 或 `https://`，需要时附带端口，不带 `/message/push`。自建服务填写自己的地址；使用官方服务填写 `https://api2.pushdeer.com`。
+  - `PUSHDEER_SENDKEY`：由上述服务器生成的 PushDeer key（官方服务的 [获取地址](https://www.pushdeer.com/product.html)）。
+  - 配置 PushDeer 推送时必须同时填写地址和密钥；缺少地址会明确报错，不会自动使用官方服务器。请勿将实际自建地址或密钥写入公开代码。
 - **Server酱**：添加 `repository secret` 命名为 `SERVERCHAN_SENDKEY`，其值对应 Server酱 SendKey（[获取地址](https://sct.ftqq.com/)）。
 
 ### Star 本仓库
