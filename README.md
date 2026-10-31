@@ -1,6 +1,6 @@
 # Glados自动签到
 
-> 基于 GitHub Actions 的 GLaDOS 自动签到工具，支持多账号与多通道推送（PushDeer / Server酱）。
+> 基于 GitHub Actions 的 GLaDOS 自动签到工具，支持多账号与多通道推送（PushDeer / Server酱 / 飞书）。
 
 ## 文件结构
 
@@ -66,6 +66,11 @@
   - `PUSHDEER_SENDKEY`：由上述服务器生成的 PushDeer key（官方服务的 [获取地址](https://www.pushdeer.com/product.html)）。
   - 配置 PushDeer 推送时必须同时填写地址和密钥；缺少地址会明确报错，不会自动使用官方服务器。请勿将实际自建地址或密钥写入公开代码。
 - **Server酱**：添加 `repository secret` 命名为 `SERVERCHAN_SENDKEY`，其值对应 Server酱 SendKey（[获取地址](https://sct.ftqq.com/)）。
+
+- **飞书自定义机器人**：在飞书群中添加自定义机器人，并在本仓库配置以下 Secrets：
+  - `FEISHU_WEBHOOK`：机器人的完整 Webhook 地址；配置后与其他已配置渠道一起推送签到汇总。
+  - `FEISHU_SECRET`：机器人开启「签名校验」时必须填写的签名密钥；未开启时可留空。若使用关键词校验，请确保通知标题或正文包含对应关键词。
+  - Webhook 和签名密钥均不要写入公开代码。网络错误日志不会输出 Webhook。
 
 ### Star 本仓库
 
