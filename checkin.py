@@ -2,6 +2,7 @@ import base64
 import hashlib
 import hmac
 import os
+import re
 import sys
 import time
 from dataclasses import asdict, dataclass
@@ -460,6 +461,8 @@ class API:
                 self._log("info", LogEmoji.SUCCESS, f"{{ code : {code}, message : {message} }}")
                 return f"兑换成功: {plan}"
             else:
+                # 兑换提示中的所需积分和现有积分只显示整数部分。
+                message = re.sub(r"(\b(?:need|have)\s+)(\d+)\.\d+", r"\1\2", message, flags=re.IGNORECASE)
                 self._log("info", LogEmoji.FAIL, f"{{ code : {code}, message : {message} }}", force=True)
                 return f"兑换失败: {message}"
         else:
