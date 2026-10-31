@@ -517,8 +517,16 @@ class PushDeerBackend(PushBackend):
 
     def send(self, title: str, payload: dict) -> bool:
         try:
-            PushDeer(pushkey=self.push_key).send_text(title, desp=self._render(payload))
-            return True
+            server = os.environ.get("PUSHDEER_SERVER", "").strip().rstrip("/")
+            if not server:
+                raise ValueError("未配置 PUSHDEER_SERVER，请在 Actions Secrets 中设置推送服务根地址")
+
+            success = PushDeer(server=server, pushkey=self.push_key).send_text(
+                title, desp=self._render(payload)
+            )
+            if not success:
+                logger.error(f"{LogEmoji.ERROR} [{self.name}] 推送失败: 接口未返回推送成功结果")
+            return bool(success)
         except Exception as e:
             logger.error(f"{LogEmoji.ERROR} [{self.name}] 推送失败: {e}")
             return False
