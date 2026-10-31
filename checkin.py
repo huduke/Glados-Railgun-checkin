@@ -1,5 +1,9 @@
+import base64
+import hashlib
+import hmac
 import os
 import sys
+import time
 from dataclasses import asdict, dataclass
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Union
@@ -99,6 +103,8 @@ class Config:
 
     ENV_PUSH_KEY = "PUSHDEER_SENDKEY"
     ENV_SERVERCHAN_KEY = "SERVERCHAN_SENDKEY"
+    ENV_FEISHU_WEBHOOK = "FEISHU_WEBHOOK"
+    ENV_FEISHU_SECRET = "FEISHU_SECRET"
     ENV_COOKIES = "GLADOS_COOKIES"
     ENV_EXCHANGE_PLAN = "GLADOS_EXCHANGE_PLAN"
     ENV_VERBOSE = "GLADOS_VERBOSE"
@@ -122,6 +128,8 @@ class Config:
     def __init__(self):
         self.push_key: str = ""
         self.serverchan_key: str = ""
+        self.feishu_webhook: str = ""
+        self.feishu_secret: str = ""
         self.cookies_list: List[str] = []
         self.exchange_plan: str = self.DEFAULT_EXCHANGE_PLAN
         self.verbose: bool = self.DEFAULT_VERBOSE
@@ -131,6 +139,8 @@ class Config:
         """加载配置"""
         push_key_env: Optional[str] = os.environ.get(self.ENV_PUSH_KEY)
         serverchan_key_env: Optional[str] = os.environ.get(self.ENV_SERVERCHAN_KEY)
+        self.feishu_webhook = os.environ.get(self.ENV_FEISHU_WEBHOOK, "").strip()
+        self.feishu_secret = os.environ.get(self.ENV_FEISHU_SECRET, "").strip()
         raw_cookies_env: Optional[str] = os.environ.get(self.ENV_COOKIES)
         exchange_plan_env: Optional[str] = os.environ.get(self.ENV_EXCHANGE_PLAN)
         verbose_env: Optional[str] = os.environ.get(self.ENV_VERBOSE)
@@ -562,6 +572,46 @@ class ServerChanBackend(PushBackend):
             return False
 
 
+class FeishuBackend(PushBackend):
+    """飞书自定义机器人推送，支持签名校验。"""
+
+    name = "飞书"
+
+    def __init__(self, webhook: str, secret: str = ""):
+        self.webhook = webhook
+        self.secret = secret
+
+    def send(self, title: str, payload: dict) -> bool:
+        data = {
+            "msg_type": "text",
+            "content": {"text": f"{title}\n{self._render(payload)}"},
+        }
+        if self.secret:
+            timestamp = str(int(time.time()))
+            # 飞书以时间戳和密钥组成签名键，对空消息计算 HMAC-SHA256。
+            signing_key = f"{timestamp}\n{self.secret}".encode("utf-8")
+            signature = hmac.new(signing_key, b"", digestmod=hashlib.sha256).digest()
+            data["timestamp"] = timestamp
+            data["sign"] = base64.b64encode(signature).decode("utf-8")
+
+        try:
+            response = requests.post(self.webhook, json=data, timeout=(5, 15))
+            if not response.ok:
+                logger.error(f"{LogEmoji.ERROR} [{self.name}] 推送失败: HTTP {response.status_code}")
+                return False
+            result = response.json()
+            if isinstance(result, dict) and result.get("code") == 0:
+                return True
+            code = result.get("code", "缺失") if isinstance(result, dict) else "响应格式异常"
+            logger.error(f"{LogEmoji.ERROR} [{self.name}] 推送失败: 错误码 {code}，请检查机器人的加签、关键词或 IP 限制")
+        except ValueError:
+            logger.error(f"{LogEmoji.ERROR} [{self.name}] 推送失败: 接口未返回有效 JSON")
+        except requests.exceptions.RequestException as e:
+            # 请求异常可能包含 Webhook，日志只记录异常类型，避免泄露密钥。
+            logger.error(f"{LogEmoji.ERROR} [{self.name}] 推送失败: 网络请求异常 ({type(e).__name__})")
+        return False
+
+
 class PushService:
     """推送服务：聚合多个后端，向全部已配置后端发送（都发）"""
 
@@ -572,6 +622,8 @@ class PushService:
                 self.backends.append(PushDeerBackend(config.push_key))
             if getattr(config, "serverchan_key", ""):
                 self.backends.append(ServerChanBackend(config.serverchan_key))
+            if getattr(config, "feishu_webhook", ""):
+                self.backends.append(FeishuBackend(config.feishu_webhook, getattr(config, "feishu_secret", "")))
 
     def send(self, title: str, payload: dict) -> bool:
         """向所有已配置后端发送推送，只要有一个成功即视为成功"""
