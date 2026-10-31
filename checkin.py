@@ -109,7 +109,7 @@ class Config:
     """默认是否输出详细响应"""
     DEFAULT_VERBOSE = False
 
-    """默认域名"""
+    """按优先级尝试的域名，签到成功或已签到后停止尝试"""
     DOMAINS = ["glados.cloud", "railgun.info"]
 
     """兑换计划列表"""
@@ -603,13 +603,13 @@ class Checker:
             logger.info(f"{LogEmoji.COOKIE}[{cookie_idx}] {LogEmoji.DOMAIN}[{domain}] {emoji} {message}")
 
     def checkin_all(self):
-        """执行所有签到任务"""
+        """按 Cookie 依次尝试域名，签到成功或已签到后跳过备用域名"""
         cookie_count = len(self.config.cookies_list)
         domain_count = len(self.config.DOMAINS)
         total_tasks = cookie_count * domain_count
         task_idx = 0
 
-        logger.info(f"{LogEmoji.INFO} 共 {cookie_count} 个 Cookie, {domain_count} 个域名, 共 {total_tasks} 个任务")
+        logger.info(f"{LogEmoji.INFO} 共 {cookie_count} 个 Cookie, {domain_count} 个候选域名, 最多 {total_tasks} 次尝试")
 
         for cookie_idx, cookie in enumerate(self.config.cookies_list, 1):
             logger.info(f"{LogEmoji.START} ========== 开始处理 Cookie {cookie_idx} ==========")
@@ -628,6 +628,11 @@ class Checker:
                     self._log(cookie_idx, domain, LogEmoji.SUCCESS, result_message, force=True)
                 else:
                     self._log(cookie_idx, domain, LogEmoji.WARNING, result_message, force=True)
+
+                # 当前 Cookie 已完成签到，无需再访问后续备用域名。
+                if result.code in (CheckinStatus.SUCCESS, CheckinStatus.REPEAT):
+                    self._log(cookie_idx, domain, LogEmoji.INFO, "当前 Cookie 已签到，跳过后续备用域名", force=True)
+                    break
 
     def _checkin_on_domain(self, cookie: str, cookie_idx: int, domain: str) -> CheckinResult:
         result = CheckinResult(cookie_idx, domain)
